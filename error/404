@@ -1,0 +1,6 @@
+<?php
+	include '../php/not_found.php';
+
+	not_found(sprintf('The resource "%s" could not be found on the server.',
+			$_SERVER['REQUEST_URI']));
+?>

@@ -1,0 +1,58 @@
+<?php
+	include '../php/config.php';
+	include '../php/settings.php';
+	include '../php/bad_request.php';
+	include '../php/not_found.php';
+	include '../php/base64url.php';
+
+	if (!$_SERVER['HTTPS'])
+		bad_request('This endpoint only supports HTTPS.');
+
+	if (!$mysqli = mysqli_init())
+		bad_request('MySQLi could not be initialized.');
+
+	if (!$link = $mysqli->real_connect($config['mysql_server'],
+					$config['mysql_username'],
+					$config['mysql_password'],
+					$config['mysql_database']))
+		bad_request('Could not connect to the LibreIdP database.');
+
+	$account_id = base64url_encode(random_bytes(16));
+
+	$query = sprintf("INSERT INTO users SET accountId = '%s',
+					authMethods = '%s',
+					username = NULL,
+					emailAddress = NULL,
+					emailVerified = FALSE,
+					creationTime = NOW(),
+					enabled = FALSE,
+					created = FALSE;",
+				$mysqli->real_escape_string($account_id),
+				$mysqli->real_escape_string($setting['default_auth_methods']));
+	if (!$mysqli->query($query, $link))
+		bad_request('Could not create the LibreIdP account on the database.');
+
+	$signup_token = base64url_encode(random_bytes(256));
+
+	$query = sprintf("INSERT INTO signupTokens SET signupToken = '%s',
+					accountId = '%s',
+					creationTime = NOW();",
+				$mysqli->real_escape_string($signup_token),
+				$mysqli->real_escape_string($account_id));
+	if (!$mysqli->query($query, $link))
+		bad_request('Could not associate the sign-up token to the newly created LibreIdP account.');
+
+	$mysqli->close();
+
+	printf("<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset=\"utf-8\">
+	</head>
+
+	<script type=\"text/javascript\">
+		window.sessionStorage.setItem('signupToken', '%s');
+		window.location.replace('/signup/email');
+	</script>
+</html>", $signup_token);
+?>

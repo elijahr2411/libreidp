@@ -1,0 +1,148 @@
+<?php
+	include '../../../../php/config.php';
+	include '../../../../php/settings.php';
+	include '../../../../php/json_error.php';
+	include '../../../../php/email.php';
+	include '../../../../php/base64url.php';
+	include '../../../../php/authorization.php';
+
+	if (!$_SERVER['HTTPS'])
+		json_error('https_required', 'This endpoint only supports HTTPS.');
+
+	sleep(1);
+
+	if (!$mysqli = mysqli_init())
+		json_error('server_error', 'Could not initialize MySQLi.');
+
+	if (!$link = $mysqli->real_connect($config['mysql_server'],
+					$config['mysql_username'],
+					$config['mysql_password'],
+					$config['mysql_database']))
+		json_error('server_error', 'Could not connect to the LibreIdP database.');
+
+	if ($_SERVER['REQUEST_METHOD'] != 'POST') {
+		bad_request(sprintf('This endpoint only supports POST, but %s was used.',
+				$_SERVER['REQUEST_METHOD']));
+	}
+
+	if (array_key_exists('action', $_REQUEST))
+		$action = $_REQUEST['action'];
+	else
+		json_error('invalid_syntax', 'The action was not specified.');
+
+	switch ($action) {
+		case 'send':
+			if (array_key_exists('email_address', $_POST))
+				$email_address = $_POST['email_address'];
+			else
+				json_error('invalid_syntax', 'The e-mail address was not specified.');
+
+			$verification_code = random_int(0, 99999999);	
+			$hash_algorithm = $setting['password_hash_algorithm'];
+			$iteration_count = $setting['password_hash_iteration_count'];
+			$salt = base64url_encode(random_bytes(32));
+
+			$verification_code_digest = hash($hash_algorithm,
+						sprintf("%08d", $verification_code) . $salt);
+
+			for ($i = 0; $i < $iteration_count; ++$i) {
+				$verification_code_digest = hash($hash_algorithm,
+						$verification_code_digest);
+			}
+
+			$encoded_verification_code_digest =
+				$mysqli->real_escape_string(base64url_encode($verification_code_digest));
+
+			$verification_token = base64url_encode(random_bytes(256));
+
+			$query = sprintf("INSERT INTO emailVerificationCodes SET token = '%s',
+							emailAddress = '%s',
+							verified = FALSE,
+							hashAlgorithm = '%s',
+							iterationCount = '%d',
+							salt = '%s',
+							digest = '%s',
+							creationTime = NOW();",
+						$mysqli->real_escape_string($verification_token),
+						$mysqli->real_escape_string($email_address),
+						$mysqli->real_escape_string($hash_algorithm),
+						$iteration_count,
+						$mysqli->real_escape_string($salt),
+						$mysqli->real_escape_string($encoded_verification_code_digest));
+			if (!$mysqli->query($query, $link)) {
+				json_error('server_error',
+					'Could not register the verification code on the database. Try again.');
+			}
+
+			$email_from = $setting['noreply_email_address'];
+			$email_content = sprintf("Subject: E-mail verification code\r\n" .
+"Content-Type: text/plain\r\n" .
+"\r\n" .
+"Hi,\r\n" .
+"\r\n" .
+"Someone (probably you) wants to verify this e-mail address belongs to its owner.\r\n" .
+"Use this verification code to verify this e-mail address: %08d\r\n" .
+"\r\n" .
+"If you aren't trying to verify this e-mail address, ignore this e-mail.\r\n" .
+"\r\n" .
+"- The LibreIdP e-mail verification system\r\n", $verification_code, $_SERVER['REMOTE_ADDR']);
+
+			send_email($email_from, $email_address, $email_content);
+
+			header('Content-Type: application/json');
+			printf('{ "token": "%s" }', $verification_token);
+
+			break;
+
+		case 'verify':
+			if (!$verification_token = get_authorization_token())
+				json_error('invalid_syntax', 'The verification token was not specified.');
+
+			if (array_key_exists('verification_code', $_POST))
+				$verification_code = $_POST['verification_code'];
+			else
+				json_error('invalid_syntax', 'The verification code was not specified.');
+
+			$query = sprintf("SELECT *, UNIX_TIMESTAMP(creationTime) AS creationTimestamp
+						FROM emailVerificationCodes WHERE token = '%s';",
+						$mysqli->real_escape_string($verification_token));
+			if (!$row = mysqli_fetch_assoc($mysqli->query($query, $link))) {
+				json_error('verification_token_not_found',
+					'Could not find the specified verification token on the database.');
+			}
+
+			if (time() > $row['creationTimestamp'] + $setting['verification_expires_in'])
+				json_error('verification_token_expired', 'The specified verification token expired.');
+
+			$hash_algorithm = $row['hashAlgorithm'];
+			$iteration_count = $row['iterationCount'];
+			$salt = $row['salt'];
+
+			$digest = hash($hash_algorithm, $verification_code . $salt);
+			for ($i = 0; $i < $iteration_count; ++$i)
+				$digest = hash($hash_algorithm, $digest);
+
+			if (base64url_encode($digest) == $row['digest']) {
+				$query = sprintf("UPDATE emailVerificationCodes SET verified = TRUE
+							WHERE token = '%s';",
+						$mysqli->real_escape_string($verification_token));
+				if (!$mysqli->query($query, $link))
+					json_error('server_error',
+						'Could not set the verification status on the database.');
+			} else {
+				json_error('incorrect_verification_code',
+					'The specified verification code is incorrect. Try again.');
+			}
+
+			header('Content-Type: application/json');
+			echo '{ "verified": "true" }';
+
+			break;
+
+		default:
+			bad_request(sprintf('This endpoint only supports GET and POST, but %s was used.',
+					$_SERVER['REQUEST_METHOD']));
+	}
+
+	$mysqli->close();
+?>

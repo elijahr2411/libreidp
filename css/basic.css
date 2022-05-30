@@ -1,0 +1,74 @@
+/**
+ * css/basic.css
+ * 
+ * Description: The basic LibreIdP user interface style
+ */
+
+body {
+	font-family: helvetica, arial, sans-serif;
+	background-color: white;
+}
+
+.header {
+	height: 100px;
+}
+
+.headerLogoText {
+	font-size: 20pt;
+	color: #686868;
+}
+
+.line {
+	width: 100%;
+	height: 1px;
+	background-color: black;
+}
+
+.textBox {
+	height: 30px;
+	font-size: 12pt;
+	border: 0px;
+	margin: 3px;
+	background-color: #f8f8f8;
+}
+
+.whiteButton {
+	width: 100px;
+	height: 30px;
+	font-size: 12pt;
+	background-color: #f8f8f8;
+	border: 0px;
+	margin: 3px;
+}
+
+.blueButton {
+	width: 100px;
+	height: 30px;
+	font-size: 12pt;
+	background-color: #4080ff;
+	border: 0px;
+	margin: 3px;
+}
+
+.dropdown {
+	width: 250px;
+	height: 25px;
+	font-size: 12pt;
+	background-color: #f8f8f8;
+	border: 0px;
+	margin: 3px;
+}
+
+.dateSelector {
+	width: 150px;
+	height: 25px;
+	font-size: 12pt;
+	font-family: helvetica, arial, sans-serif;
+	background-color: #f8f8f8;
+	border: 0px;
+	margin: 3px;
+}
+
+.roundedPicture {
+	border-radius: 100%;
+}

@@ -1,0 +1,255 @@
+<?php
+	include '../php/config.php';
+	include '../php/settings.php';
+	include '../php/bad_request.php';
+	include '../php/json_error.php';
+	include '../php/authorization.php';
+
+	if (!$_SERVER['HTTPS'])
+		bad_request('This endpoint only supports HTTPS.');
+
+	switch ($_SERVER['REQUEST_METHOD']) {
+		case 'GET':
+			printf("<!DOCTYPE html>
+<html lang=\"en\">
+	<head>
+		<meta charset=\"utf-8\">
+		<meta name=\"language\" content=\"en\">
+		<title>Create account</title>
+
+		<link rel=\"stylesheet\" href=\"/css/basic.css\">
+		<link rel=\"stylesheet\" href=\"/css/login.css\">
+	</head>
+
+	<script type=\"text/javascript\" src=\"/js/signup.js\"></script>
+	<script type=\"text/javascript\" src=\"/js/email_verification.js\"></script>
+
+	<script type=\"text/javascript\">
+		getSignupToken();
+	</script>
+
+	<body>
+		<div class=\"loginWindow\">
+			<div id=\"waitAnimation\" class=\"loginWaitAnimation\"></div>
+
+			<img src=\"/img/libreidp-logo.png\" alt=\"LibreIdP logo\"
+				width=\"150px\" height=\"80px\">
+
+			<h1>Verify your e-mail address</h1>
+
+			<p>
+				LibreIdP must verify that the e-mail address you entered belongs
+				to you.
+			</p>
+
+			<p>
+				Enter the 8-digit verification code that we have sent to the e-mail
+				address you entered, then click <b>Next</b> to continue.
+			</p>
+
+			<span id=\"error\" style=\"color: red\"></span>
+
+			<input type=\"text\" class=\"textBox\" id=\"verificationCode\"
+				placeholder=\"Verification code\" oninput=\"updateSubmitButton();\"
+				style=\"width: 475px;\" disabled=\"true\" /><br>
+
+			<input type=\"button\" class=\"blueButton\" id=\"submit\" value=\"Next\"
+				onclick=\"processInput()\" disabled=\"true\" />
+			<input type=\"button\" class=\"whiteButton\" id=\"resend\" value=\"Resend\"
+				onclick=\"sendVerificationEmail()\" disabled=\"true\" />
+		</div>
+	</body>
+
+	<script type=\"text/javascript\">
+		function sendVerificationEmail() {
+			document.getElementById('waitAnimation').style.display = 'block';
+			document.getElementById('error').innerHTML = '';
+			document.getElementById('verificationCode').disabled = true;
+			document.getElementById('submit').disabled = true;
+			document.getElementById('resend').disabled = true;
+
+			emailVerification.send();
+		}
+
+		function verifyEmail(code) {
+			document.getElementById('waitAnimation').style.display = 'block';
+			document.getElementById('error').innerHTML = '';
+			document.getElementById('verificationCode').disabled = true;
+			document.getElementById('submit').disabled = true;
+			document.getElementById('resend').disabled = true;
+
+			emailVerification.verify(code);
+		}
+
+		function processInput() {
+			var verificationCode = document.getElementById('verificationCode').value;
+			verifyEmail(verificationCode);
+		}
+
+		function updateSubmitButton() {
+			document.getElementById('submit').disabled = !isVerificationCodeValid();
+		}
+
+		var signupToken = getSignupToken();
+		var emailVerification;
+
+		getEmailAddressFromSignupToken(signupToken,
+			function (emailAddress) {
+				emailVerification = new LibreIdPEmailCodeVerification(emailAddress);
+
+				emailVerification.onSendSuccess = function () {
+					document.getElementById('waitAnimation').style.display = 'none';
+
+					document.getElementById('submit').disabled = false;
+					document.getElementById('resend').disabled = false;
+
+					updateSubmitButton();
+
+					document.getElementById('verificationCode').value = '';
+					document.getElementById('verificationCode').disabled = false;
+					document.getElementById('verificationCode').focus();
+				};
+
+				emailVerification.onSendFailure = function (error, errorDescription) {
+					document.getElementById('waitAnimation').style.display = 'none';
+					document.getElementById('resend').disabled = false;
+
+					document.getElementById('error').innerHTML =
+						'An error occurred while sending the verification e-mail: ' +
+						errorDescription ? errorDescription : error;
+			 	};
+
+				emailVerification.onVerifySuccess = function () {
+					sendSignupForm(signupToken,
+							'verification_token=' + emailVerification.verificationToken,
+							'/signup/profile',
+							function () {
+								document.getElementById('waitAnimation').style.display = 'none';
+
+								document.getElementById('verificationCode').disabled = false;
+								document.getElementById('submit').disabled = false;
+								document.getElementById('resend').disabled = false;
+							}
+					);
+				};
+
+				emailVerification.onVerifyFailure = function (error, errorDescription) {
+					document.getElementById('waitAnimation').style.display = 'none';
+
+					document.getElementById('verificationCode').disabled = false;
+					document.getElementById('submit').disabled = false;
+					document.getElementById('resend').disabled = false;
+	
+					if (errorDescription) {
+						document.getElementById('error').innerHTML = errorDescription;
+					} else {
+						document.getElementById('error').innerHTML =
+							`Could not verify your e-mail address: \${error}`;
+					}
+
+					document.getElementById('verificationCode').value = '';
+					document.getElementById('verificationCode').focus();
+				};
+
+				emailVerification.send();
+			},
+			function (error, errorDescription) {
+				document.getElementById('error').innerHTML =
+					'An error occurred while getting the e-mail address';
+
+				if (errorDescription) {
+					document.getElementById('error').innerHTML += `: \${errorDescription}`;
+				} else {
+					document.getElementById('error').innerHTML += '.';
+				}
+			}
+		);
+	</script>
+</html>");
+			break;
+
+		case 'POST':
+			if (!$signup_token = get_authorization_token())
+				json_error('invalid_syntax', 'The sign-up token was not specified.');
+
+			if (array_key_exists('verification_token', $_POST))
+				$verification_token = $_POST['verification_token'];
+			else
+				json_error('invalid_syntax', 'The verification token was not specified.');
+
+			if (!$mysqli = mysqli_init())
+				json_error('server_error', 'MySQLi could not be initialized');
+
+			if (!$link = $mysqli->real_connect($config['mysql_server'],
+							$config['mysql_username'],
+							$config['mysql_password'],
+							$config['mysql_database']))
+				json_error('server_error', 'Could not connect to the LibreIdP database.');
+
+			$query = sprintf("SELECT *, UNIX_TIMESTAMP(creationTime) AS creationTimestamp
+					FROM signupTokens WHERE signupToken = '%s';",
+					$mysqli->real_escape_string($signup_token));
+			if (!$row = mysqli_fetch_assoc($mysqli->query($query, $link))) {
+				json_error('signup_token_not_found',
+					'Could not find the specified sign-up token on the database.');
+			}
+
+			if (time() > $row['creationTimestamp'] + $setting['signup_token_expires_in'])
+				json_error('signup_token_expired', 'The specified sign-up token expired.');
+
+			$account_id = $row['accountId'];
+
+			$query = sprintf("SELECT emailAddress FROM users WHERE accountId = '%s';",
+					$mysqli->real_escape_string($account_id));
+			if (!$row = mysqli_fetch_assoc($mysqli->query($query, $link))) {
+				json_error('account_not_found',
+					'Could not find the account associated with the specified sign-up token.');
+			}
+
+			$account_email_address = $row['emailAddress'];
+
+			$query = sprintf("SELECT *, UNIX_TIMESTAMP(creationTime) AS creationTimestamp
+					FROM emailVerificationCodes WHERE token = '%s';",
+					$mysqli->real_escape_string($verification_token));
+			if (!$row = mysqli_fetch_assoc($mysqli->query($query, $link))) {
+				json_error('verification_token_not_found',
+					'Could not find the specified e-mail verification token.');
+			}
+
+			if (time() > $row['creationTimestamp'] + $setting['verification_expires_in']) {
+				json_error('verification_token_expired',
+					'The specified e-mail verification token expired.');
+			}
+
+			if ($row['emailAddress'] != $account_email_address) {
+				json_error('email_address_mismatch',
+						'The e-mail address of the specified e-mail verification token ' .
+						'does not match the e-mail address of the account associated with ' .
+						'the specified sign-up token.');
+			}
+
+			if (!$row['verified']) {
+				json_error('email_address_not_verified',
+					'The specified e-mail address was not previously verified.');
+			}
+
+			$query = sprintf("UPDATE users SET emailVerified = TRUE WHERE accountId = '%s';",
+					$account_id);
+			if (!$mysqli->query($query, $link)) {
+				json_error('server_error',
+						'Could not set the verification status of the e-mail address ' .
+						'associated with the specified account.');
+			}
+
+			$mysqli->close();
+
+			header('Content-Type: application/json');
+			echo '{ "status": "success" }';
+
+			break;
+
+		default:
+			bad_request(sprintf('This endpoint only supports GET and POST, but %s was used.',
+					$_SERVER['REQUEST_METHOD']));
+	}
+?>

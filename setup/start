@@ -1,0 +1,53 @@
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="language" content="en">
+		<title>Set up LibreIdP</title>
+
+		<link rel="stylesheet" href="/css/basic.css">
+	</head>
+
+	<body>
+		<div class="header">
+			<img src="/img/libreidp-logo.png" alt="LibreIdP logo">
+		</div>
+
+		<div class="line"></div>
+
+		<div class="content">
+			<h1>Set up LibreIdP</h1>
+	
+			<p>
+				This page lets you set up your new LibreIdP server.
+				We need some information before we can set up your server.
+			</p>
+	
+			<p>
+				You will need access to an empty MySQL database that will be used by LibreIdP
+				to store the following data:
+				<ul>
+					<li>LibreIdP account information (display name, e-mail address, etc.)</li>
+					<li>OAuth access tokens, refresh tokens, authorization codes and code
+					verifiers</li>
+					<li>Information about profile pictures</li>
+				</ul>
+			</p>
+	
+			<p>
+				If you don't have an empty MySQL database for LibreIdP to use, log in to your
+				MySQL server and run the command <code>mysqladmin create libreidp</code> as
+				<tt>root</tt> to create an empty MySQL database named <tt>libreidp</tt>.
+			</p>
+	
+			<p>
+				Click <b>Next</b> to continue.
+			</p>
+	
+			<div>
+				<input type="button" class="blueButton"
+					onclick="window.location.assign('/setup/mysql');"
+					value="Next" />
+			</div>
+		</div>
+	</body>
+</html>

@@ -1,0 +1,10 @@
+ErrorDocument 403 /error/403
+ErrorDocument 404 /error/404
+
+RewriteEngine on
+RewriteBase "/"
+RewriteRule "^$" "/login"
+
+<Files "picture">
+	SetHandler application/x-httpd-php
+</Files>

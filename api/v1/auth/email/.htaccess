@@ -1,0 +1,7 @@
+RewriteEngine on
+RewriteBase "/api/v1/auth/email"
+RewriteRule "^$" "/error/404"
+
+<Files "code">
+	SetHandler application/x-httpd-php
+</Files>

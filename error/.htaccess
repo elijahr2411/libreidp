@@ -1,0 +1,7 @@
+<Files "403">
+	SetHandler application/x-httpd-php
+</Files>
+
+<Files "404">
+	SetHandler application/x-httpd-php
+</Files>

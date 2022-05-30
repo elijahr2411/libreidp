@@ -1,0 +1,3 @@
+RewriteEngine on
+RewriteBase "/img"
+RewriteRule "^$" "/error/404"

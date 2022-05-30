@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang=\"en\">
+	<head>
+		<meta charset=\"utf-8\">
+		<meta name=\"language\" content=\"en\">
+		<title>Set up LibreIdP</title>
+
+		<link rel="stylesheet" href="/css/basic.css">
+	</head>
+
+	<body>
+		<div class="header">
+			<img src="/img/libreidp-logo.png" alt="LibreIdP logo">
+		</div>
+
+		<div class="line"></div>
+
+		<div class="content">
+			<h1>LibreIdP has been set up successfully.</h1>
+	
+			<p>
+				Here are some things you can do to finish setting up your LibreIdP server:
+	
+				<ul>
+					<li>Edit the settings file (&lt;web root&gt;/php/settings.php)</li>
+					<li>Create a test account for yourself <a href="/signup">here</a></li>
+					<li>Set up additional servers in a cluster of servers to increase
+					the availability of your LibreIdP service.</li>
+				</ul>
+			</p>
+	
+			<p>
+				We have created a file located at &lt;document root&gt;/php/config.php
+				containing the LibreIdP configuration.
+			</p>
+		</div>
+	</body>
+</html>

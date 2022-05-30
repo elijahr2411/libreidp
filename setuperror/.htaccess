@@ -1,0 +1,7 @@
+RewriteEngine on
+RewriteBase "/setuperror"
+RewriteRule "^$" "/error/404"
+
+<Files "mysql">
+	SetHandler application/x-httpd-php
+</Files>

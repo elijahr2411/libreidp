@@ -1,0 +1,50 @@
+<?php
+	include '../../../php/config.php';
+	include '../../../php/settings.php';
+	include '../../../php/json_error.php';
+	include '../../../php/authorization.php';
+
+	if (!$_SERVER['HTTPS'])
+		json_error('https_required', 'This endpoint only supports HTTPS.');
+
+	if (!$signup_token = get_authorization_token())
+		json_error('invalid_syntax', 'The sign-up token was not specified.');
+
+	if (!$mysqli = mysqli_init())
+		json_error('server_error', 'MySQLi could not be initialized.');
+
+	if (!$link = $mysqli->real_connect($config['mysql_server'],
+					$config['mysql_username'],
+					$config['mysql_password'],
+					$config['mysql_database']))
+		json_error('invalid_syntax', 'Could not connect to the LibreIdP database.');
+
+	$query = sprintf("SELECT *, UNIX_TIMESTAMP(creationTime) AS creationTimestamp
+				FROM signupTokens WHERE signupToken = '%s';",
+			$mysqli->real_escape_string($signup_token));
+	if (!$row = mysqli_fetch_assoc($mysqli->query($query, $link))) {
+		json_error('signup_token_not_found',
+			'Could not find the specified sign-up token on the database.');
+	}
+
+	if (time() > $row['creationTimestamp'] + $setting['signup_token_expires_in'])
+		json_error('signup_token_expired', 'The specified sign-up token expired.');
+
+	$query = sprintf("SELECT emailAddress, created FROM users WHERE accountId = '%s';",
+			$mysqli->real_escape_string($row['accountId']));
+	if (!$row = mysqli_fetch_assoc($mysqli->query($query, $link))) {
+		json_error('account_not_found',
+			'Could not find the account associated with the specified sign-up token.');
+	}
+
+	if ($row['created']) {
+		json_error('account_created',
+				'The account associated with the specified sign-up token has already been created.' .
+				'This API is not meant for already-created accounts.');
+	}
+
+	$mysqli->close();
+
+	header('Content-Type: application/json');
+	printf('{ "email_address": "%s" }', $row['emailAddress']);
+?>

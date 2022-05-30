@@ -1,0 +1,286 @@
+<?php
+	include '../php/config.php';
+	include '../php/settings.php';
+	include '../php/bad_request.php';
+	include '../php/json_error.php';
+	include '../php/authorization.php';
+	include '../php/country_codes.php';
+
+	switch ($_SERVER['REQUEST_METHOD']) {
+		case 'GET':
+			$country_dropdown = '<select id="country" class="dropdown" oninput="updateSubmitButton()" ' .
+					'disabled="true"><option value="unspecified">-- Select country --</option>';
+
+			foreach ($country_codes as $country_code => $country_name) {
+				$country_dropdown .= sprintf('<option value="%s">%s</option>',
+						$country_code, htmlspecialchars($country_name));
+			}
+
+			$country_dropdown .= '</select>';
+
+			printf("<!DOCTYPE html>
+<html lang=\"en\">
+	<head>
+		<meta charset=\"utf-8\">
+		<meta name=\"language\" content=\"en\">
+		<title>Create account</title>
+
+		<link rel=\"stylesheet\" href=\"/css/basic.css\">
+		<link rel=\"stylesheet\" href=\"/css/login.css\">
+	</head>
+
+	<script type=\"text/javascript\" src=\"/js/signup.js\"></script>
+
+	<script type=\"text/javascript\">
+		getSignupToken();
+	</script>
+
+	<body>
+		<div class=\"loginWindow\">
+			<div id=\"waitAnimation\" class=\"loginWaitAnimation\"></div>
+
+			<img src=\"/img/libreidp-logo.png\" alt=\"LibreIdP logo\"
+				width=\"150px\" height=\"80px\">
+
+			<h1>Your profile on LibreIdP</h1>
+
+			<p>
+				LibreIdP and applications that use your application will use
+				your profile to customize the user interface and identify you.
+			</p>
+
+			<p>
+				Create your profile by filling in the form below, then click
+				<b>Next</b> to continue.
+			</p>
+
+			<span id=\"error\" style=\"color: red;\"></span><br>
+
+			<input type=\"text\" id=\"username\" class=\"textBox\"
+				placeholder=\"Username\" oninput=\"updateSubmitButton();\"
+				style=\"width: 50%%;\" disabled=\"true\" />
+
+			<br><br>
+
+			<input type=\"text\" id=\"name\" class=\"textBox\"
+				placeholder=\"First name\" oninput=\"updateSubmitButton();\"
+				style=\"width: 200px;\" disabled=\"true\" />
+			<input type=\"text\" id=\"surname\" class=\"textBox\"
+				placeholder=\"Last name\" oninput=\"updateSubmitButton();\"
+				style=\"width: 200px;\" disabled=\"true\" />
+
+			<br>
+
+			<input type=\"text\" id=\"preferredName\" class=\"textBox\"
+				placeholder=\"Preferred name\" oninput=\"updateSubmitButton();\"
+				style=\"width: 415px\" disabled=\"true\" />
+
+			<br><br>
+
+			<div style=\"display: flex;\">
+				<div style=\"margin-right: 50px;\">
+					<b>Date of birth</b><br>
+					<input type=\"date\" id=\"birthDate\" class=\"dateSelector\"
+						oninput=\"updateSubmitButton();\" disabled=\"true\"/>
+				</div>
+	
+				<div>
+					<b>Country</b><br>
+					%s
+				</div>
+			</div>
+
+			<input type=\"button\" id=\"submit\" class=\"blueButton\"
+				value=\"Next\" onclick=\"processInput();\" disabled=\"true\" />
+		</div>
+	</body>
+
+	<script type=\"text/javascript\">
+		function processInput() {
+			document.getElementById('waitAnimation').style.display = 'block';
+
+			document.getElementById('username').disabled = true;
+			document.getElementById('name').disabled = true;
+			document.getElementById('surname').disabled = true;
+			document.getElementById('preferredName').disabled = true;
+			document.getElementById('birthDate').disabled = true;
+			document.getElementById('country').disabled = true;
+			document.getElementById('submit').disabled = true;
+
+			username = encodeURI(document.getElementById('username').value);
+			name = encodeURI(document.getElementById('name').value);
+			surname = encodeURI(document.getElementById('surname').value);
+			preferredName = encodeURI(document.getElementById('preferredName').value);
+			birthDate = encodeURI(document.getElementById('birthDate').value);
+			country = encodeURI(document.getElementById('country').value);
+
+			sendSignupForm(signupToken, `username=\${username}&name=\${name}&surname=\${surname}` +
+						`&preferred_name=\${preferredName}&birth_date=\${birthDate}` +
+						`&country=\${country}`,
+						'/signup/finish',
+						function (status, description) {
+							document.getElementById('waitAnimation').style.display = 'none';
+
+							document.getElementById('username').disabled = false;
+							document.getElementById('name').disabled = false;
+							document.getElementById('surname').disabled = false;
+							document.getElementById('preferredName').disabled = false;
+							document.getElementById('birthDate').disabled = false;
+							document.getElementById('country').disabled = false;
+							document.getElementById('submit').disabled = false;
+
+							if (status == 'success')
+								window.location.replace('/signup/finish');
+						}
+			);
+		}
+
+		function updateSubmitButton() {
+			document.getElementById('submit').disabled = !isFormValid();
+		}
+
+		function isUsernameValid(username) {
+			return /^[A-Za-z_][A-Za-z0-9_.]*$/.exec(username) ? true : false;
+		}
+
+		function isFormValid() {
+			username = document.getElementById('username').value;
+			name = document.getElementById('name').value;
+			preferredName = document.getElementById('preferredName').value;
+			birthDate = document.getElementById('birthDate').value;
+			country = document.getElementById('country').value;
+
+			return isUsernameValid(username) && name != '' && preferredName != '' &&
+				birthDate != '' && country != '' && country != 'unspecified';
+		}
+
+		signupToken = getSignupToken(); 
+
+		document.getElementById('waitAnimation').style.display = 'none';
+
+		document.getElementById('username').disabled = false;
+		document.getElementById('name').disabled = false;
+		document.getElementById('surname').disabled = false;
+		document.getElementById('preferredName').disabled = false;
+		document.getElementById('birthDate').disabled = false;
+		document.getElementById('country').disabled = false;
+
+		updateSubmitButton();
+
+		document.getElementById('username').focus();
+	</script>
+</html>", $country_dropdown);
+			break;
+
+		case 'POST':
+			if (!$signup_token = get_authorization_token())
+				json_error('invalid_syntax', 'The sign-up token was not specified.');
+
+			if (array_key_exists('username', $_POST))
+				$username = $_POST['username'];
+			else
+				json_error('invalid_syntax', 'The username was not specified.');
+
+			if (!preg_match('/^[A-Za-z_][A-Za-z0-9_.]*$/', $username))
+				json_error('invalid_syntax', 'The specified username is not valid.');
+
+			if (array_key_exists('name', $_POST))
+				$name = $_POST['name'];
+			else
+				json_error('invalid_syntax', 'The display name was not specified.');
+
+			if (array_key_exists('surname', $_POST)) {
+				$surname = $_POST['surname'];
+			} else {
+				/* Do not require a surname, since some people don't have one */
+				$surname = null;
+			}
+
+			if (array_key_exists('preferred_name', $_POST))
+				$preferred_name = $_POST['preferred_name'];
+			else
+				json_error('invalid_syntax', 'The preferred name was not specified.');
+
+			if (array_key_exists('birth_date', $_POST))
+				$birth_date = $_POST['birth_date'];
+			else
+				json_error('invalid_syntax', 'The date of birth was not specified.');
+
+			if (array_key_exists('country', $_POST))
+				$country = $_POST['country'];
+			else
+				json_error('invalid_syntax', 'The country was not specified.');
+
+			/*
+			 * Age restrictions are enforced when the server is a public server,
+			 * to comply with data protection laws.
+			 */
+			if ($setting['is_public_server']) {
+				$birth_date_array = explode('-', $birth_date);
+
+				$year = $birth_date_array[0];
+				$month = $birth_date_array[1];
+				$day = $birth_date_array[2];
+
+				$dob_timestamp = mktime(0, 0, 0, $day, $month, $year);
+				$minimum_age_timestamp = 13 * 365 * 86400;
+
+				if (time() - $dob_timestamp < $minimum_age_timestamp)
+					json_error('underage_user',
+						'You must be 13 years of age or older to create a LibreIdP account.');
+			}
+
+			if (!$mysqli = mysqli_init())
+				json_error('server_error', 'MySQLi could not be initialized.');
+
+			if (!$link = $mysqli->real_connect($config['mysql_server'],
+							$config['mysql_username'],
+							$config['mysql_password'],
+							$config['mysql_database']))
+				json_error('server_error', 'Could not connect to the LibreIdP database.');
+
+			$query = sprintf("SELECT * FROM users WHERE username = '%s';",
+						$mysqli->real_escape_string($username));
+			if (mysqli_fetch_assoc($mysqli->query($query, $link)))
+				json_error('username_already_taken', 'The specified username is already taken. ' .
+								'Please try a different username.');
+
+			$query = sprintf("SELECT * FROM signupTokens WHERE signupToken = '%s';",
+					$mysqli->real_escape_string($signup_token));
+			if (!$row = mysqli_fetch_assoc($mysqli->query($query, $link)))
+				json_error('server_error', 'Could not find the specified sign-up token on the database.');
+
+			$query = sprintf("UPDATE users SET username = '%s' WHERE accountId = '%s';",
+					$mysqli->real_escape_string($username),
+					$mysqli->real_escape_string($row['accountId']));
+			if (!$mysqli->query($query, $link)) {
+				json_error('server_error', 'Could not set the username of the account associated with ' .
+							'the specified sign-up token.');
+			}
+
+			$query = sprintf("INSERT INTO profiles SET accountId = '%s',
+							name = '%s', surname = '%s',
+							preferredName = '%s',
+							birthDate = '%s', country = '%s',
+							lastModificationTime = NOW(),
+							accessControl = '{}';",
+						$mysqli->real_escape_string($row['accountId']),
+						$mysqli->real_escape_string($name),
+						$mysqli->real_escape_string($surname),
+						$mysqli->real_escape_string($preferred_name),
+						$mysqli->real_escape_string($birth_date),
+						$mysqli->real_escape_string($country));
+			if (!$mysqli->query($query, $link)) {
+				json_error('server_error', 'Could not set the profile of the account associated with the ' .
+							'specified sign-up token.');
+			}
+
+			echo '{ "status": "success" }';
+
+			break;
+
+		default:
+			bad_request(sprintf('This endpoint only supports GET and POST, but %s was used.',
+					$_SERVER['REQUEST_METHOD']));
+	}
+?>

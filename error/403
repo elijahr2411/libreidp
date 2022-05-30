@@ -1,0 +1,6 @@
+<?php
+	include '../php/access_denied.php';
+
+	access_denied(sprintf('You do not have permission to access the resource "%s".',
+			$_SERVER['REQUEST_URI']));
+?>

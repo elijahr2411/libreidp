@@ -1,0 +1,11 @@
+RewriteEngine on
+RewriteBase "/setup"
+RewriteRule "^$" "start"
+
+<Files "mysql">
+	SetHandler application/x-httpd-php
+</Files>
+
+<Files "finished">
+	SetHandler application/x-httpd-php
+</Files>

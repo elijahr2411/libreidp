@@ -1,0 +1,289 @@
+<?php
+	include '../php/bad_request.php';
+
+	function setup_mysql_error($description) {
+		header(sprintf('Location: /setuperror/mysql?description=%s',
+			urlencode($description)));
+		exit;
+	}
+
+	if (!$_SERVER['HTTPS'])
+		bad_request('This endpoint only supports HTTPS.');
+
+	switch ($_SERVER['REQUEST_METHOD']) {
+		case 'GET':
+			header('Content-Type: text/html');
+
+			if ($_REQUEST['already_setup'] == '1') {
+				echo "<!DOCTYPE html>
+<html lang=\"en\">
+	<head>
+		<meta charset=\"utf-8\">
+		<meta name=\"language\" content=\"en\">
+		<title>Set up LibreIdP</title>
+
+		<link rel=\"stylesheet\" href=\"/css/basic.css\">
+	</head>
+
+	<body>
+		<div class=\"header\">
+			<img src=\"/img/libreidp-logo.png\" alt=\"LibreIdP logo\">
+		</div>
+
+		<div class=\"line\"></div>
+
+		<div class=\"content\">
+			<h1>Use an existing LibreIdP database</h1>
+	
+			<form method=\"post\" action=\"/setup/mysql?redirect_uri=/setup/finished&already_setup=1\">
+				<input type=\"text\" name=\"mysql_server\" class=\"textBox\"
+					placeholder=\"Server FQDN or IP address\" /><br>
+				<input type=\"text\" name=\"mysql_username\" class=\"textBox\"
+					placeholder=\"Username\" /><br>
+				<input type=\"password\" name=\"mysql_password\" class=\"textBox\"
+					placeholder=\"Password\" /><br>
+				<input type=\"text\" name=\"mysql_database\" class=\"textBox\"
+					placeholder=\"Database name\" /><br>
+				<br>
+				<a href=\"/setup/mysql\">Create a new LibreIdP database instead </a><br>
+				<br>
+				<input type=\"submit\" class=\"blueButton\" value=\"Next\" />
+			</form>
+		</div>
+	</body>";
+			} else {
+				echo "<!DOCTYPE html>
+</html lang=\"en\">
+	<head>
+		<meta charset=\"utf-8\">
+		<meta name=\"language\" content=\"en\">
+		<title>Set up LibreIdP</title>
+
+		<link rel=\"stylesheet\" href=\"/css/basic.css\">
+	</head>
+
+	<body>
+		<div class=\"header\">
+			<img src=\"/img/libreidp-logo.png\" alt=\"LibreIdP logo\">
+		</div>
+
+		<div class=\"line\"></div>
+
+		<div class=\"content\">
+			<h1>Set up the MySQL database</h1>
+	
+			<p>
+				LibreIdP requires a MySQL database to work properly, because
+				it will store data on a MySQL database.
+			</p>
+	
+			<p>
+				Fill the form below with the fully qualified domain name (FQDN) or IP
+				address of the MySQL database server, the credentials to log in to
+				MySQL, and the name of the database that LibreIdP will use, then
+				click <b>Next</b> to continue.
+			</p>
+	
+			<p>
+				If this is an additional server on a cluster, click 'I have already set up
+				LibreIdP'.
+			</p>
+	
+			<p>
+				When you click <b>Next</b>, the server FQDN or IP address, username,
+				password and database name will be sent to the server and LibreIdP
+				will start the MySQL configuration process.
+	
+				LibreIdP will create a MySQL user account called <tt>libreidp</tt>,
+				with a randomly generated password stored in the LibreIdP configuration file,
+				which is used by LibreIdP to make MySQL queries.
+			</p>
+	
+			<p>
+				The MySQL user account that LibreIdP will use needs the following privileges:
+				<ul>
+					<li>
+						<tt>CREATE USER</tt> globally (or <tt>INSERT</tt> and <tt>UPDATE</tt>, globally,
+						or on the <tt>mysql</tt> database)
+					</li>
+	
+					<li>
+						<tt>GRANT OPTION</tt>
+					</li>
+	
+					<li>
+						<tt>CREATE</tt>, globally, or on the LibreIdP database
+					</li>
+	
+					<li>
+						<tt>INSERT</tt>, <tt>SELECT</tt>, <tt>UPDATE</tt> and <tt>DELETE</tt>,
+						globally, or on the LibreIdP database
+					</li>
+				</ul>
+			</p>
+	
+			<form method=\"post\" action=\"/setup/mysql?redirect_uri=/setup/finished\">
+				<input type=\"text\" name=\"mysql_server\" class=\"textBox\"
+					placeholder=\"Server FQDN or IP address\" /><br>
+				<input type=\"text\" name=\"mysql_username\" class=\"textBox\"
+					placeholder=\"Username\" /><br>
+				<input type=\"password\" name=\"mysql_password\" class=\"textBox\"
+					placeholder=\"Password\" /><br>
+				<input type=\"text\" name=\"mysql_database\" class=\"textBox\"
+					placeholder=\"Database name\" /><br>
+				<br>
+				<a href=\"/setup/mysql?already_setup=1\">I have already set up LibreIdP</a><br>
+				<br>
+				<input type=\"submit\" class=\"blueButton\" value=\"Next\" />
+			</form>
+		</div>
+	</body>
+<html>";
+			}
+			break;
+
+		case 'POST':
+			$already_setup = $_REQUEST['already_setup'];
+
+			$mysql_server = $_POST['mysql_server'];
+			if ($mysql_server == '')
+				bad_request('The MySQL server FQDN or IP address was not specified.');
+
+			$mysql_username = $_POST['mysql_username'];
+			if ($mysql_username == '')
+				bad_request('The MySQL username was not specified.');
+
+			$mysql_password = $_POST['mysql_password'];
+			if ($mysql_password == '')
+				bad_request('The MySQL password was not specified.');
+
+			$mysql_database = $_POST['mysql_database'];
+			if ($mysql_database == '')
+				bad_request('The MySQL database name was not specified.');
+
+			if ($already_setup == '1')
+				$libreidp_secret = $mysql_password;
+
+			if (!$mysqli = mysqli_init())
+				bad_request('MySQLi could not be initialized.');
+
+			if (!$link = $mysqli->real_connect($mysql_server,
+						$mysql_username,
+						$mysql_password,
+						$mysql_database))
+				setup_mysql_error('An error occurred while connecting to the MySQL server.');
+
+			if ($already_setup != '1') {
+				$libreidp_secret = rtrim(strtr(base64_encode(random_bytes(256)), '+/', '-_'), '=');
+
+				$query = "CREATE TABLE pictures (id VARCHAR(22) PRIMARY KEY,
+							type VARCHAR(255) NOT NULL,
+							path VARCHAR(255) NOT NULL);";
+				if (!$mysqli->query($query, $link))
+					setup_mysql_error(sprintf('The query "%s" failed.', $query));
+
+				$query = "CREATE TABLE users (accountId VARCHAR(22) PRIMARY KEY,
+							authMethods VARCHAR(255) NOT NULL,
+							username VARCHAR(255),
+							emailAddress VARCHAR(255),
+							emailVerified BOOLEAN NOT NULL,
+							creationTime DATETIME NOT NULL,
+							enabled BOOLEAN NOT NULL,
+							created BOOLEAN NOT NULL);";
+				if (!$mysqli->query($query, $link))
+					setup_mysql_error(sprintf('The query "%s" failed.', $query));
+
+				$query = "CREATE TABLE profiles (accountId VARCHAR(22) PRIMARY KEY,
+							name VARCHAR(255),
+							surname VARCHAR(255),
+							picture VARCHAR(22),
+							initials VARCHAR(32),
+							description TEXT,
+							birthDate DATE,
+							country VARCHAR(2),
+							preferredName VARCHAR(255),
+							gender VARCHAR(32),
+							language VARCHAR(32),
+							otherProfileInformation TEXT,
+							contactEmailAddresses TEXT,
+							contactPhoneNumbers TEXT,
+							otherContactInformation TEXT,
+							lastModificationTime DATETIME NOT NULL,
+							accessControl JSON NOT NULL);";
+				if (!$mysqli->query($query, $link))
+					setup_mysql_error(sprintf('The query "%s" failed.', $query));
+
+				$query = "CREATE TABLE passwords (accountId VARCHAR(22) PRIMARY KEY,
+							hashAlgorithm VARCHAR(32) NOT NULL,
+							hashIterationCount SMALLINT UNSIGNED NOT NULL,
+							digest VARCHAR(255) NOT NULL,
+							salt VARCHAR(255) NOT NULL,
+							creationTime DATETIME NOT NULL,
+							expirationTime DATETIME,
+							active BOOLEAN NOT NULL);";
+				if (!$mysqli->query($query, $link))
+					setup_mysql_error(sprintf('The query "%s" failed.', $query));
+
+				$query = "CREATE TABLE emailVerificationCodes (token VARCHAR(342) PRIMARY KEY,
+							emailAddress VARCHAR(255) NOT NULL,
+							verified BOOLEAN NOT NULL,
+							hashAlgorithm VARCHAR(32) NOT NULL,
+							iterationCount SMALLINT UNSIGNED NOT NULL,
+							salt VARCHAR(255) NOT NULL,
+							digest VARCHAR(255) NOT NULL,
+							creationTime DATETIME NOT NULL);";
+				if (!$mysqli->query($query, $link))
+					setup_mysql_error(sprintf('The query "%s" failed.', $query));
+
+				$query = "CREATE TABLE signupTokens (signupToken VARCHAR(342) PRIMARY KEY,
+								accountId VARCHAR(22) NOT NULL,
+								creationTime DATETIME NOT NULL);";
+				if (!$mysqli->query($query, $link))
+					setup_mysql_error(sprintf('The query "%s" failed.', $query));
+
+				$query = sprintf("CREATE USER 'libreidp' IDENTIFIED BY '%s';",
+						$mysqli->real_escape_string($libreidp_secret));
+				if (!$mysqli->query($query, $link))
+					setup_mysql_error(sprintf('The query "%s" failed.', $query));
+	
+				$query = "REVOKE ALL PRIVILEGES, GRANT OPTION FROM 'libreidp';";
+				if (!$mysqli->query($query, $link))
+					setup_mysql_error(sprintf('The query "%s" failed.', $query));
+	
+				$query = sprintf("GRANT INSERT, SELECT, UPDATE, DELETE ON %s.* TO 'libreidp';",
+						$mysqli->real_escape_string($mysql_database));
+				if (!$mysqli->query($query, $link))
+					setup_mysql_error(sprintf('The query "%s" failed.', $query));
+
+				$mysqli->close();
+			}
+	
+			if (!$config = fopen('../php/config.php', 'wt'))
+				bad_request('Could not open the LibreIdP configuration file.');
+
+			if (!fprintf($config, "<?php
+	\$config = [
+		'mysql_server' => '%s',
+		'mysql_username' => 'libreidp',
+		'mysql_password' => '%s',
+		'mysql_database' => '%s'
+	]
+?>", $mysql_server, $libreidp_secret, $mysql_database))
+				bad_request('Could not write the LibreIdP configuration to the LibreIdP ' .
+					'configuration file.');
+
+			fclose($config);
+
+			$redirect_uri = $_REQUEST['redirect_uri'] == '' ?
+					'/setup' :
+					$_REQUEST['redirect_uri'];
+
+			header('Location: ' . $redirect_uri);
+
+			break;
+
+		default:
+			bad_request(sprintf('This endpoint only supports GET and POST, but %s was used.',
+					$_SERVER['REQUEST_METHOD']));
+	}
+?>

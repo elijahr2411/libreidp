@@ -1,0 +1,19 @@
+RewriteEngine on
+RewriteBase "/signup"
+RewriteRule "^$" "start"
+
+<Files "start">
+	SetHandler application/x-httpd-php
+</Files>
+
+<Files "email">
+	SetHandler application/x-httpd-php
+</Files>
+
+<Files "verifyemail">
+	SetHandler application/x-httpd-php
+</Files>
+
+<Files "profile">
+	SetHandler application/x-httpd-php
+</Files>

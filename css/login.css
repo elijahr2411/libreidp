@@ -1,0 +1,33 @@
+@keyframes leftToRight {
+	from { margin-left: 100%; }
+	to { margin-left: 0%; }
+}
+
+@keyframes loginWaitAnimation {
+	from { margin-left: 0%; }
+	to { margin-left: 80%; }
+}
+
+body {
+	background-color: #e8e8f8;
+	display: flex;
+	justify-content: center;
+	animation-name: leftToRight;
+	animation-duration: 200ms;
+	margin-top: 40px;
+}
+
+.loginWindow {
+	width: 500px;
+	height: 575px;
+	background-color: white;
+}
+
+.loginWaitAnimation {
+	width: 20%;
+	height: 5px;
+	background-color: #4080ff;
+	animation-name: loginWaitAnimation;
+	animation-duration: 500ms;
+	animation-iteration-count: infinite;
+}

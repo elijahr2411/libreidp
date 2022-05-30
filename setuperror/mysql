@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="language" content="en">
+		<title></title>
+
+		<link rel="stylesheet" href="/css/basic.css">
+	</head>
+
+	<body>
+		<div class="header">
+			<img src="/img/libreidp-logo.png" alt="LibreIdP">
+		</div>
+
+		<div class="line"></div>
+
+		<div class="content">
+			<h1>A MySQL error occurred.</h1>
+			<p>
+
+				Check the server FQDN or IP address, credentials and database name
+				and try again.
+			</p>
+
+<?php
+	$description = $_REQUEST['description'];
+	if ($description != '')
+		    printf('<p>Error description: %s</p>', $description);
+?>
+
+			<input type="button" class="blueButton"
+				onclick="window.location.assign('/setup/mysql');"
+				value="Back"/>
+		</div>
+	</body>
+</html>
